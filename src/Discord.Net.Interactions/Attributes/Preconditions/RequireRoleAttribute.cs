@@ -15,6 +15,11 @@ namespace Discord.Interactions
         public string RoleName { get; }
 
         /// <summary>
+        /// Gets a string array of Role names of the precondition.
+        /// </summary>
+        public string[] RoleNames { get;}
+
+        /// <summary>
         ///     Gets the specified Role ID of the precondition.
         /// </summary>
         public ulong? RoleId { get; }
@@ -43,6 +48,15 @@ namespace Discord.Interactions
             RoleName = roleName;
         }
 
+        /// <summary>
+        ///     Requires that the user invoking the command to have a specific Role, from a list of roles.
+        /// </summary>
+        /// <param name="roleNames">Array of role names the user must have.</param>
+        public RequireRoleAttribute(string[] roleNames)
+        {
+            RoleNames = roleNames;
+        }
+
         /// <inheritdoc />
         public override Task<PreconditionResult> CheckRequirementsAsync(IInteractionContext context, ICommandInfo commandInfo, IServiceProvider services)
         {
@@ -51,20 +65,26 @@ namespace Discord.Interactions
 
             if (RoleId.HasValue)
             {
-                if (guildUser.RoleIds.Contains(RoleId.Value))
-                    return Task.FromResult(PreconditionResult.FromSuccess());
-                else
-                    return Task.FromResult(PreconditionResult.FromError(ErrorMessage ?? $"User requires guild role {context.Guild.GetRole(RoleId.Value).Name}."));
+                return Task.FromResult(guildUser.RoleIds.Contains(RoleId.Value)
+                                           ? PreconditionResult.FromSuccess()
+                                           : PreconditionResult.FromError(ErrorMessage ?? $"User requires guild role {context.Guild.GetRole(RoleId.Value).Name}."));
             }
 
             if (!string.IsNullOrEmpty(RoleName))
             {
                 var roleNames = guildUser.RoleIds.Select(x => guildUser.Guild.GetRole(x).Name);
 
-                if (roleNames.Contains(RoleName))
-                    return Task.FromResult(PreconditionResult.FromSuccess());
-                else
-                    return Task.FromResult(PreconditionResult.FromError(ErrorMessage ?? $"User requires guild role {RoleName}."));
+                return Task.FromResult(roleNames.Contains(RoleName)
+                                           ? PreconditionResult.FromSuccess()
+                                           : PreconditionResult.FromError(ErrorMessage ?? $"User requires guild role {RoleName}."));
+            }
+
+            if (RoleNames.Length > 0)
+            {
+                var roleNames = guildUser.RoleIds.Select(x => guildUser.Guild.GetRole(x).Name);
+                return Task.FromResult(roleNames.Any(roleName => RoleNames.Any(x => x == roleName))
+                                           ? PreconditionResult.FromSuccess()
+                                           : PreconditionResult.FromError(ErrorMessage ?? $"User requires at least one role: {string.Join(", ", RoleNames)}."));
             }
 
             return Task.FromResult(PreconditionResult.FromSuccess());
